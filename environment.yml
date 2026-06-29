@@ -1,0 +1,16 @@
+name: probe_sam2
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - numpy
+  - opencv
+  - pytorch
+  - torchvision
+  - pytorch-cuda=12.1
+  - pip:
+      - huggingface_hub
+      - pyrealsense2
