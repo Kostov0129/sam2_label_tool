@@ -5,11 +5,12 @@ TOP_DIR="${TOP_DIR:-out/probe_top_dataset}"
 BUMP_DIR="${BUMP_DIR:-out/probe_bump_dataset}"
 OUTPUT_DIR="${OUTPUT_DIR:-out/probe_top_bump_sam2}"
 MODEL_SIZE="${MODEL_SIZE:-base}"
+CLASS_NAMES="${CLASS_NAMES:-probe_top,probe_bump}"
 
 PYTHONUNBUFFERED=1 python wp/probe_train/train_probe_sam2.py \
   --whole_dir "${TOP_DIR}" \
   --yellow_dir "${BUMP_DIR}" \
-  --class_names probe_top,probe_bump \
+  --class_names "${CLASS_NAMES}" \
   --output_dir "${OUTPUT_DIR}" \
   --model_size "${MODEL_SIZE}" \
   --epochs "${EPOCHS:-120}" \

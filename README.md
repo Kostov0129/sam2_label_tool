@@ -1,13 +1,15 @@
-# Probe SAM2 Labeling and Promptless Mask Training
+# SAM2 Label Tool
 
-This repository contains a compact, reproducible workflow for building probe mask datasets with SAM2 and training a promptless SAM2 model for fixed classes such as `probe_top` and `probe_bump`.
+This repository contains a compact, reproducible workflow for building binary mask datasets with SAM2 and training a promptless SAM2 model for fixed object classes.
+
+It is not limited to probes. You can label any object that needs a mask, then train a model with your own class names such as `plug`, `socket`, `button`, `probe_top`, or `probe_bump`.
 
 It includes:
 
 - Interactive SAM2-assisted mask labeling.
 - Manual polygon/brush mask labeling.
 - Dataset export with `images/`, `masks/`, `overlays/`, and `manifest.json`.
-- Promptless SAM2 training with learned class tokens.
+- Promptless SAM2 training with learned class tokens for fixed classes.
 - Offline image/directory inference.
 - RealSense live preview.
 
@@ -23,7 +25,7 @@ Place those under `datasets/`, `raw/`, `out/`, or `checkpoints/` locally.
 
 ```bash
 git clone <this-repo-url>
-cd sam2-probe-labeling
+cd sam2_label_tool
 
 bash scripts/install_env.sh
 conda activate probe_sam2
@@ -43,11 +45,11 @@ pip install -e /path/to/sam2
 Put images in one folder:
 
 ```text
-raw/probe_top/
+raw/class_a/
   frame_0001.jpg
   frame_0002.jpg
 
-raw/probe_bump/
+raw/class_b/
   frame_0001.jpg
   frame_0002.jpg
 ```
@@ -56,30 +58,30 @@ Supported image suffixes: `.jpg`, `.jpeg`, `.png`, `.bmp`, `.webp`, `.tif`, `.ti
 
 ## 3. Label Masks with SAM2
 
-Label `probe_top`:
+Label `class_a`:
 
 ```bash
 python wp/data_utils/probe_sam2_mask_labeler.py \
-  --input_dir raw/probe_top \
-  --output_dir datasets/probe_top \
-  --class_name probe_top \
+  --input_dir raw/class_a \
+  --output_dir datasets/class_a \
+  --class_name class_a \
   --model_size base
 ```
 
-Label `probe_bump`:
+Label `class_b`:
 
 ```bash
 python wp/data_utils/probe_sam2_mask_labeler.py \
-  --input_dir raw/probe_bump \
-  --output_dir datasets/probe_bump \
-  --class_name probe_bump \
+  --input_dir raw/class_b \
+  --output_dir datasets/class_b \
+  --class_name class_b \
   --model_size base
 ```
 
 Shortcut:
 
 ```bash
-bash scripts/label_with_sam2.sh raw/probe_top datasets/probe_top probe_top
+bash scripts/label_with_sam2.sh raw/class_a datasets/class_a class_a
 ```
 
 ### Labeler Controls
@@ -117,14 +119,14 @@ Masks are `.npy` binary arrays:
 
 ## 5. Train Promptless SAM2
 
-Train a two-class `probe_top` / `probe_bump` model:
+Train a two-class model. The training script keeps historical argument names (`--whole_dir` and `--yellow_dir`), but the datasets can contain any two classes.
 
 ```bash
 PYTHONUNBUFFERED=1 python wp/probe_train/train_probe_sam2.py \
-  --whole_dir datasets/probe_top \
-  --yellow_dir datasets/probe_bump \
-  --class_names probe_top,probe_bump \
-  --output_dir out/probe_top_bump_sam2 \
+  --whole_dir datasets/class_a \
+  --yellow_dir datasets/class_b \
+  --class_names class_a,class_b \
+  --output_dir out/class_a_class_b_sam2 \
   --model_size base \
   --epochs 120 \
   --batch_size 1 \
@@ -149,6 +151,8 @@ MODEL_SIZE=base \
 bash scripts/train_promptless_sam2.sh
 ```
 
+You can override class names used by the script by editing `scripts/train_promptless_sam2.sh` or running `train_probe_sam2.py` directly with `--class_names`.
+
 For a smaller model:
 
 ```bash
@@ -158,7 +162,7 @@ MODEL_SIZE=tiny bash scripts/train_promptless_sam2.sh
 Outputs:
 
 ```text
-out/probe_top_bump_sam2/
+out/class_a_class_b_sam2/
   best.pt
   last.pt
   train_meta.json
@@ -168,7 +172,7 @@ out/probe_top_bump_sam2/
 
 ```bash
 python wp/probe_train/infer_probe_sam2.py \
-  --checkpoint out/probe_top_bump_sam2/best.pt \
+  --checkpoint out/class_a_class_b_sam2/best.pt \
   --input raw/test_images \
   --output_dir out/predictions \
   --threshold 0.5 \
@@ -180,14 +184,14 @@ This writes per-class `.npy` masks, `.png` masks, and overlay previews.
 Shortcut:
 
 ```bash
-bash scripts/infer_image.sh out/probe_top_bump_sam2/best.pt raw/test_images out/predictions
+bash scripts/infer_image.sh out/class_a_class_b_sam2/best.pt raw/test_images out/predictions
 ```
 
 ## 7. RealSense Live Preview
 
 ```bash
 python wp/probe_train/live_probe_sam2.py \
-  --checkpoint out/probe_top_bump_sam2/best.pt \
+  --checkpoint out/class_a_class_b_sam2/best.pt \
   --class_id -1 \
   --threshold 0.5 \
   --width 640 \
@@ -202,7 +206,7 @@ python wp/probe_train/live_probe_sam2.py \
 Shortcut:
 
 ```bash
-bash scripts/live_realsense.sh out/probe_top_bump_sam2/best.pt
+bash scripts/live_realsense.sh out/class_a_class_b_sam2/best.pt
 ```
 
 ## 8. Manual Labeling Without SAM2
@@ -211,9 +215,9 @@ If SAM2 is unavailable or you want to manually fix masks:
 
 ```bash
 python wp/data_utils/probe_mask_labeler.py \
-  --input_dir raw/probe_top \
-  --output_dir datasets/probe_top \
-  --class_name probe_top
+  --input_dir raw/class_a \
+  --output_dir datasets/class_a \
+  --class_name class_a
 ```
 
 ## Notes
