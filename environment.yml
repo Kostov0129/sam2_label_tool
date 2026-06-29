@@ -1,4 +1,4 @@
-name: probe_sam2
+name: sam2_label_tool
 channels:
   - pytorch
   - nvidia
@@ -13,4 +13,3 @@ dependencies:
   - pytorch-cuda=12.1
   - pip:
       - huggingface_hub
-      - pyrealsense2

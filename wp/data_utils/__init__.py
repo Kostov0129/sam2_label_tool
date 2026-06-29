@@ -1,1 +1,0 @@
-"""Dataset annotation utilities."""

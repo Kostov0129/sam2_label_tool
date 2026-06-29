@@ -5,7 +5,15 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from probe_mask_labeler import ensure_dirs, list_images, load_mask, make_overlay, write_manifest, write_outputs, zip_dataset
+from sam2_label_tool.dataset_io import (
+    ensure_dirs,
+    list_images,
+    load_mask,
+    make_overlay,
+    write_manifest,
+    write_outputs,
+    zip_dataset,
+)
 
 
 MODEL_CHECKPOINTS = {
@@ -15,18 +23,19 @@ MODEL_CHECKPOINTS = {
 }
 
 
-class ProbeSAM2Annotator:
-    def __init__(self, image_path, predictor, existing_mask=None):
+class SAM2MaskAnnotator:
+    def __init__(self, image_path, predictor, existing_mask=None, brush_radius=12):
         self.image_path = Path(image_path)
         self.image_bgr = cv2.imread(str(self.image_path), cv2.IMREAD_COLOR)
         if self.image_bgr is None:
             raise ValueError(f"Failed to load image: {self.image_path}")
 
         self.image_rgb = cv2.cvtColor(self.image_bgr, cv2.COLOR_BGR2RGB)
-        if existing_mask is not None:
-            self.mask = load_mask(existing_mask, self.image_bgr.shape)
-        else:
-            self.mask = np.zeros(self.image_bgr.shape[:2], dtype=np.uint8)
+        self.mask = (
+            load_mask(existing_mask, self.image_bgr.shape)
+            if existing_mask is not None
+            else np.zeros(self.image_bgr.shape[:2], dtype=np.uint8)
+        )
 
         self.predictor = predictor
         self.points = []
@@ -34,10 +43,9 @@ class ProbeSAM2Annotator:
         self.manual_points = []
         self.history = [self.mask.copy()]
         self.mode = "sam"
-        self.brush_radius = 12
+        self.brush_radius = brush_radius
         self.cursor = None
         self.dragging = False
-        self.logits = None
         self.result = "save"
         self.is_predicting = False
 
@@ -49,7 +57,6 @@ class ProbeSAM2Annotator:
 
         if not self.points:
             self.mask[:] = 0
-            self.logits = None
             return
 
         point_coords = np.array(self.points, dtype=np.float32)
@@ -59,14 +66,14 @@ class ProbeSAM2Annotator:
         try:
             if torch.cuda.is_available():
                 with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
-                    masks, scores, logits = self.predictor.predict(
+                    masks, scores, _logits = self.predictor.predict(
                         point_coords=point_coords,
                         point_labels=point_labels,
                         multimask_output=True,
                     )
             else:
                 with torch.inference_mode():
-                    masks, scores, logits = self.predictor.predict(
+                    masks, scores, _logits = self.predictor.predict(
                         point_coords=point_coords,
                         point_labels=point_labels,
                         multimask_output=True,
@@ -74,7 +81,6 @@ class ProbeSAM2Annotator:
 
             best_idx = int(np.argmax(scores))
             self.mask = np.where(masks[best_idx] > 0, 255, 0).astype(np.uint8)
-            self.logits = logits[best_idx]
         finally:
             self.is_predicting = False
 
@@ -135,13 +141,6 @@ class ProbeSAM2Annotator:
         elif event == cv2.EVENT_LBUTTONUP:
             self.dragging = False
 
-    def add_sam_point(self, x, y, flags):
-        if self.mode == "sam":
-            label = 0 if flags & cv2.EVENT_FLAG_CTRLKEY else 1
-            self.points.append((x, y))
-            self.labels.append(label)
-            self.predict()
-
     def undo(self):
         if self.mode == "polygon" and self.manual_points:
             self.manual_points.pop()
@@ -160,7 +159,6 @@ class ProbeSAM2Annotator:
         self.labels = []
         self.manual_points = []
         self.mask[:] = 0
-        self.logits = None
 
     def draw_points(self, view):
         for (x, y), label in zip(self.points, self.labels):
@@ -198,7 +196,7 @@ class ProbeSAM2Annotator:
         ]
 
     def show(self):
-        window = "Probe SAM2 mask labeler"
+        window = "SAM2 mask labeler"
         cv2.namedWindow(window, cv2.WINDOW_NORMAL)
         cv2.resizeWindow(window, 1100, 800)
         cv2.setMouseCallback(window, self.on_mouse)
@@ -262,13 +260,14 @@ class ProbeSAM2Annotator:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Annotate probe surface masks with SAM2 point prompts.")
-    parser.add_argument("--input_dir", required=True, help="Directory containing probe images.")
-    parser.add_argument("--output_dir", default="out/probe_surface_dataset", help="Directory for images, masks, overlays, manifest.")
+    parser = argparse.ArgumentParser(description="Annotate binary masks with SAM2 point prompts.")
+    parser.add_argument("--input_dir", required=True, help="Directory containing images.")
+    parser.add_argument("--output_dir", default="out/mask_dataset", help="Directory for images, masks, overlays, manifest.")
     parser.add_argument("--limit", type=int, default=None, help="Maximum number of images to label.")
     parser.add_argument("--overwrite", action="store_true", help="Relabel images whose masks already exist.")
     parser.add_argument("--model_size", default="base", choices=sorted(MODEL_CHECKPOINTS), help="SAM2 model size.")
-    parser.add_argument("--class_name", default="probe_surface", help="Foreground class name stored in manifest.json.")
+    parser.add_argument("--class_name", default="object", help="Foreground class name stored in manifest.json.")
+    parser.add_argument("--brush_radius", type=int, default=12, help="Initial brush radius in pixels.")
     parser.add_argument("--zip", dest="zip_path", default=None, help="Optional path to write a zip package.")
     args = parser.parse_args()
 
@@ -289,7 +288,7 @@ def main():
         from sam2.sam2_image_predictor import SAM2ImagePredictor
     except ImportError as exc:
         raise SystemExit(
-            "SAM2 is not available in this Python environment. Activate the conda environment "
+            "SAM2 is not available in this Python environment. Activate the environment "
             "where torch and sam2 are installed, then rerun this command."
         ) from exc
 
@@ -303,7 +302,12 @@ def main():
             continue
 
         print(f"[{idx}/{len(images)}] labeling: {image_path.name}")
-        annotator = ProbeSAM2Annotator(image_path, predictor, existing_mask=mask_path)
+        annotator = SAM2MaskAnnotator(
+            image_path,
+            predictor,
+            existing_mask=mask_path,
+            brush_radius=args.brush_radius,
+        )
         annotator.set_image()
         result, mask = annotator.show()
 
@@ -328,3 +332,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
