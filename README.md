@@ -2,7 +2,7 @@
 
 This repository contains a compact, reproducible workflow for building binary mask datasets with SAM2 and training a promptless SAM2 model for fixed object classes.
 
-It is not limited to probes. You can label any object that needs a mask, then train a model with your own class names such as `plug`, `socket`, `button`, `probe_top`, or `probe_bump`.
+It is not limited to probes. You can label any object that needs a mask, then train a model with your own class names such as `plug`, `socket`, `button`.
 
 It includes:
 
