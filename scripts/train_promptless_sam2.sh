@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TOP_DIR="${TOP_DIR:-out/probe_top_dataset}"
-BUMP_DIR="${BUMP_DIR:-out/probe_bump_dataset}"
-OUTPUT_DIR="${OUTPUT_DIR:-out/probe_top_bump_sam2}"
+TOP_DIR="${TOP_DIR:-${CLASS_A_DIR:-out/class_a_dataset}}"
+BUMP_DIR="${BUMP_DIR:-${CLASS_B_DIR:-out/class_b_dataset}}"
+OUTPUT_DIR="${OUTPUT_DIR:-out/class_a_class_b_sam2}"
 MODEL_SIZE="${MODEL_SIZE:-base}"
-CLASS_NAMES="${CLASS_NAMES:-probe_top,probe_bump}"
+CLASS_NAMES="${CLASS_NAMES:-class_a,class_b}"
 
 PYTHONUNBUFFERED=1 python wp/probe_train/train_probe_sam2.py \
   --whole_dir "${TOP_DIR}" \

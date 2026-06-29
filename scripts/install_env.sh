@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ENV_NAME="${ENV_NAME:-probe_sam2}"
+ENV_NAME="${ENV_NAME:-sam2_label_tool}"
 SAM2_DIR="${SAM2_DIR:-third_party/sam2}"
 
 if ! command -v conda >/dev/null 2>&1; then
