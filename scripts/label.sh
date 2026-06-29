@@ -10,9 +10,9 @@ ZIP_PATH="${ZIP_PATH:-}"
 
 args=(
   python -m sam2_label_tool.labeler
-  --input_dir "${INPUT_DIR}" \
-  --output_dir "${OUTPUT_DIR}" \
-  --class_name "${CLASS_NAME}" \
+  --input_dir "${INPUT_DIR}"
+  --output_dir "${OUTPUT_DIR}"
+  --class_name "${CLASS_NAME}"
   --model_size "${MODEL_SIZE}"
 )
 
